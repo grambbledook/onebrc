@@ -18,7 +18,7 @@ Flags:
   -h, --help            help for generate
   -o, --output string   output file (default "measurements.csv")
   -r, --records int     number of records to generate (default 100)
-  -s, --size int        size of the chunk to generate (default 1000000)
+  -s, --size int        size of the chunk to generate (default 1)
   -w, --workers int     number of workers (default 1)
 ```
 
