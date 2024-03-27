@@ -6,7 +6,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -26,11 +25,6 @@ func do[T any](t T, err error) T {
 		panic(err)
 	}
 	return t
-}
-
-func main() {
-	path := do(filepath.Abs("data/weather_stations.csv"))
-	naive(path)
 }
 
 func naive(path string) {

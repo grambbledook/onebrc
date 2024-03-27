@@ -1,14 +1,5 @@
 # 1️⃣🐝🏎️ The One Billion Row Challenge
 
-This is the repository for the One Billion Row Challenge, a friendly competition to see who can process a billion rows of data the fastest.
+This repo is based on  Gunnar Morling's [The One Billion Rows Challenge](https://github.com/gunnarmorling/1brc). 
 
-
-
-## License
-
-This code base is available under the Apache License, version 2.
-
-## Code of Conduct
-
-Be excellent to each other!
-More than winning, the purpose of this challenge is to have fun and learn something new.
+The goal is to explore Golang standard library and profiling utils while working with a large dataset.
