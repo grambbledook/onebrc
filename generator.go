@@ -2,83 +2,97 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"github.com/spf13/cobra"
+	"golang.org/x/sync/semaphore"
 	"math/rand"
 	"os"
 	"sync"
-	"time"
 )
 
-func main() {
-	cmd := &cobra.Command{
-		Use:   "gen",
-		Short: "A simple cli tool to generate records",
-		Run: func(cmd *cobra.Command, args []string) {
-			output, _ := cmd.Flags().GetString("output")
-			records, _ := cmd.Flags().GetInt("records")
-
-			fmt.Printf("Generating %d records\n ", records)
-			fmt.Printf("Output file: %s\n ", output)
-
-			generate(output, records)
-		},
-	}
-
-	cmd.PersistentFlags().StringP("output", "o", "measurements.csv", "output file")
-	cmd.PersistentFlags().IntP("records", "r", 100, "number of records to generate")
-
-	if err := cmd.Execute(); err != nil {
-		fmt.Printf("Process failed with an error: %s\n", err)
-		os.Exit(1)
-	}
+type Interval struct {
+	start int
+	end   int
 }
 
-func generate(filename string, limit int) {
-	var chunkSize, totalChunks int
-
-	if limit%1_000_000 == 0 {
-		chunkSize, totalChunks = 1_000_000, limit/1_000_000
-	} else {
-		chunkSize, totalChunks = limit, 1
-	}
-
-	wg := sync.WaitGroup{}
-	wg.Add(totalChunks)
-
-	mutex := sync.Mutex{}
+func generate(filename string, limit, workers, maxChunkSize int) {
+	queue := make(chan Interval)
 
 	go func() {
-		defer wg.Done()
+		defer close(queue)
 
-		rnd := rand.NewSource(time.Now().UnixNano())
-		buffer := bytes.Buffer{}
-		for i := 0; i < chunkSize; i++ {
-			index := rnd.Int63() % int64(len(stations))
+		chunkSize := min(limit, maxChunkSize)
+		totalChunks := limit / chunkSize
 
-			buffer.WriteString(stations[index].City)
-			buffer.WriteString(";")
-			buffer.WriteString(fmt.Sprintf("%f", stations[index].Temperature))
-			buffer.WriteString("\n")
+		for i := 0; i < totalChunks; i++ {
+			start := i * chunkSize
+			end := i*chunkSize + chunkSize
+
+			queue <- Interval{start, end}
 		}
-
-		file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			fmt.Printf("Failed to create file: %s\n", err)
-			return
-		}
-		defer file.Close()
-
-		mutex.Lock()
-		_, err = file.Write(buffer.Bytes())
-		if err != nil {
-			fmt.Printf("Failed to write to file: %s\n", err)
-		}
-		defer mutex.Unlock()
-		fmt.Printf("Wrote %d records\n", chunkSize)
 	}()
 
+	wg := sync.WaitGroup{}
+	wg.Add(workers)
+
+	mutex := sync.Mutex{}
+	gate := semaphore.NewWeighted(int64(10))
+
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			buffer := bytes.Buffer{}
+
+			for interval := range queue {
+				processInterval(interval, buffer, filename, gate, &mutex)
+			}
+
+			fmt.Println("No more intervals to process")
+		}()
+	}
 	wg.Wait()
+	fmt.Println("Done.")
+}
+
+func processInterval(
+	interval Interval,
+	buffer bytes.Buffer,
+	filename string,
+	gate *semaphore.Weighted,
+	mutex *sync.Mutex,
+) {
+	rnd := rand.NewSource(int64(interval.start))
+
+	for i := interval.start; i < interval.end; i++ {
+		index := rnd.Int63() % int64(len(stations))
+
+		buffer.WriteString(stations[index].City)
+		buffer.WriteString(";")
+		buffer.WriteString(fmt.Sprintf("%.1f", stations[index].Temperature))
+		buffer.WriteString("\n")
+	}
+
+	just(0, gate.Acquire(context.Background(), 1))
+	defer gate.Release(1)
+
+	file := just(os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
+	defer file.Close()
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	just(file.Write(buffer.Bytes()))
+
+	buffer.Reset()
+	fmt.Printf("Wrote %d records, last id %d\n", interval.end-interval.start, interval.end-1)
+}
+
+func just[T any](result T, err error) T {
+	if err != nil {
+		fmt.Printf("An error occured duting processing [%s]", err)
+		panic(err)
+	}
+	return result
 }
 
 type WeatherStation struct {
