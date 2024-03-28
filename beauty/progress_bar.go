@@ -12,45 +12,69 @@ const (
 	incomplete = "░"
 )
 
+type state struct {
+	done     int
+	todo     int
+	percents float32
+}
+
 type ProgressBar struct {
 	total    int
 	progress int
 	width    int
 	mutex    sync.Mutex
+	chanel   chan state
 }
 
 func NewProgressBar(total int) *ProgressBar {
-	return &ProgressBar{
+	progressBar := &ProgressBar{
 		total:    total,
 		progress: 0,
 		width:    width,
-		mutex:    sync.Mutex{},
+		chanel:   make(chan state),
 	}
+
+	go draw(progressBar.chanel)
+	return progressBar
 }
 
 func (p *ProgressBar) Increment() {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	p.progress += 1
-	p.Draw()
-}
+	p.progress++
 
-func (p *ProgressBar) Draw() {
 	if p.progress > p.total {
 		return
 	}
 
-	completed := p.progress * p.width / p.total
-	remaining := p.width - completed
-
-	done := strings.Repeat(completion, completed)
-	not := strings.Repeat(incomplete, remaining)
+	done := p.progress * p.width / p.total
+	todo := p.width - done
 
 	percents := float32(p.progress) * 100 / float32(p.total)
-	fmt.Printf("\r%s %d%%", "["+done+not+"]", int(percents))
+
+	p.chanel <- state{done, todo, percents}
 
 	if p.progress == p.total {
-		fmt.Println()
+		close(p.chanel)
 	}
+}
+
+func draw(chanel chan state) {
+	previousReading := 0
+
+	for p := range chanel {
+		percents := int(p.percents)
+
+		if percents%2 != 0 || previousReading == percents {
+			continue
+		}
+
+		done := strings.Repeat(completion, p.done)
+		todo := strings.Repeat(incomplete, p.todo)
+
+		previousReading = percents
+		fmt.Printf("\r%s %d%%", "["+done+todo+"]", percents)
+	}
+	fmt.Println()
 }

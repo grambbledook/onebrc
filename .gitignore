@@ -49,3 +49,4 @@ out_expected.txt
 /*-timing.json
 /*.exe
 /*.csv
+/*.prof

@@ -48,13 +48,17 @@ func generate(config GenerateConfig) {
 	mutex := sync.Mutex{}
 	slots := semaphore.NewWeighted(int64(10))
 
-	for i := 0; i < config.workers; i++ {
+	for id := 0; id < config.workers; id++ {
 		go func() {
 			defer wg.Done()
 			buffer := bytes.Buffer{}
 
+			rnd := rand.New(rand.NewSource(int64(id)))
+			file := just(os.OpenFile(config.output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
+			defer file.Close()
+
 			for interval := range queue {
-				processInterval(interval, buffer, config.output, slots, &mutex)
+				generateInterval(interval, buffer, rnd, file, slots, &mutex)
 				pb.Increment()
 			}
 		}()
@@ -62,14 +66,14 @@ func generate(config GenerateConfig) {
 	wg.Wait()
 }
 
-func processInterval(
+func generateInterval(
 	interval interval,
 	buffer bytes.Buffer,
-	filename string,
+	rnd *rand.Rand,
+	file *os.File,
 	slots *semaphore.Weighted,
 	mutex *sync.Mutex,
 ) {
-	rnd := rand.New(rand.NewSource(int64(interval.start)))
 
 	for i := interval.start; i < interval.end; i++ {
 		index := rnd.Int63() % int64(len(stations))
@@ -84,9 +88,6 @@ func processInterval(
 
 	just(0, slots.Acquire(context.Background(), 1))
 	defer slots.Release(1)
-
-	file := just(os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
-	defer file.Close()
 
 	mutex.Lock()
 	defer mutex.Unlock()
