@@ -20,8 +20,11 @@ Flags:
   -r, --records int     number of records to generate (default 100)
   -s, --size int        size of the chunk to generate (default 1)
   -w, --workers int     number of workers (default 1)
-```
 
+Global Flags:
+      --p                        enable cpu profiling
+      --profiler_output string   cpu profiler output file (default "cpu.prof")
+```
 
 ```
 onebrc generate -o measurements.csv -r 1000000000  -w 50 -s 1000000
