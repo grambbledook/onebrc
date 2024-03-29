@@ -89,7 +89,7 @@ func render(cities []string, aggregates map[string]*Aggregate) {
 			round(a.max),
 		)
 	}
-	fmt.Print("}")
+	fmt.Println("}")
 }
 
 func round(mean float32) float32 {

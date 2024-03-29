@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"github.com/spf13/cobra"
+	"onebrc/beauty"
 	"os"
 	"runtime/pprof"
+	"time"
 )
 
 var (
@@ -33,28 +35,14 @@ var (
 			fmt.Printf("Generating [%d] records\n", records)
 			fmt.Printf("Output file: [%s]\n", output)
 
-			generate(
-				GenerateConfig{output, records, workers, chunkSize},
-			)
+			generate(GenerateConfig{output, records, workers, chunkSize})
 		},
 	}
 
 	computeCmd = &cobra.Command{
 		Use:   "compute",
 		Short: "Process measurements",
-		Run: func(cmd *cobra.Command, args []string) {
-			startProfiler(cmd)
-			defer stopProfiler(cmd)
-
-			file, _ := cmd.Flags().GetString("file")
-			iterations, _ := cmd.Flags().GetInt("iterations")
-
-			fmt.Printf("Processing data from file [%s]\n", file)
-
-			for i := 0; i < iterations; i++ {
-				naive(file)
-			}
-		},
+		Run:   compute(naive),
 	}
 )
 
@@ -86,6 +74,26 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Printf("Process failed with an error: [%s]\n", err)
 		os.Exit(1)
+	}
+}
+
+func compute(f func(string)) func(cmd *cobra.Command, args []string) {
+	return func(cmd *cobra.Command, args []string) {
+		startProfiler(cmd)
+		defer stopProfiler(cmd)
+
+		file, _ := cmd.Flags().GetString("file")
+		iterations, _ := cmd.Flags().GetInt("iterations")
+
+		summary := beauty.NewSummary()
+
+		fmt.Printf("Processing data from file [%s]\n", file)
+		for i := 0; i < iterations; i++ {
+			start := time.Now()
+			f(file)
+			summary.Record(int(time.Since(start).Milliseconds()))
+		}
+		fmt.Printf("Processing data completed, summary [%s]\n", summary.Summary())
 	}
 }
 
