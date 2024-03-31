@@ -3,7 +3,6 @@ package beauty
 import (
 	"fmt"
 	"strings"
-	"sync"
 )
 
 const (
@@ -22,7 +21,6 @@ type ProgressBar struct {
 	total    int
 	progress int
 	width    int
-	mutex    sync.Mutex
 	chanel   chan state
 }
 
@@ -39,9 +37,6 @@ func NewProgressBar(total int) *ProgressBar {
 }
 
 func (p *ProgressBar) Increment() {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
 	p.progress++
 
 	if p.progress > p.total {

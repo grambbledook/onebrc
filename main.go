@@ -35,7 +35,12 @@ var (
 			fmt.Printf("Generating [%d] records\n", records)
 			fmt.Printf("Output file: [%s]\n", output)
 
-			generate(GenerateConfig{output, records, workers, chunkSize})
+			generate(GenerateConfig{
+				output:       output,
+				records:      records,
+				workers:      workers,
+				maxChunkSize: chunkSize,
+			})
 		},
 	}
 

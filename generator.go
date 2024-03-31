@@ -2,9 +2,7 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"golang.org/x/sync/semaphore"
 	"math"
 	"math/rand"
 	"onebrc/beauty"
@@ -17,6 +15,7 @@ type GenerateConfig struct {
 	records      int
 	maxChunkSize int
 	workers      int
+	_            struct{}
 }
 
 func (c GenerateConfig) chunkSize() int {
@@ -28,73 +27,68 @@ func (c GenerateConfig) totalChunks() int {
 }
 
 func generate(config GenerateConfig) {
-	queue := make(chan interval)
+	intervals := make(chan interval)
+	go sliceIntervals(intervals, config)
 
-	pb := beauty.NewProgressBar(config.totalChunks())
-	go func() {
-		defer close(queue)
-
-		for i := 0; i < config.totalChunks(); i++ {
-			start := i * config.chunkSize()
-			end := min(config.records, i*config.chunkSize()+config.chunkSize())
-
-			queue <- interval{start, end}
-		}
-	}()
-
-	wg := sync.WaitGroup{}
-	wg.Add(config.workers)
-
-	mutex := sync.Mutex{}
-	slots := semaphore.NewWeighted(int64(10))
-
+	producers := sync.WaitGroup{}
+	chunks := make(chan *bytes.Buffer)
 	for id := 0; id < config.workers; id++ {
-		go func() {
-			defer wg.Done()
-			buffer := bytes.Buffer{}
-
-			rnd := rand.New(rand.NewSource(int64(id)))
-			file := just(os.OpenFile(config.output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
-			defer file.Close()
-
-			for interval := range queue {
-				generateInterval(interval, buffer, rnd, file, slots, &mutex)
-				pb.Increment()
-			}
-		}()
+		producers.Add(1)
+		go generateIntervals(id, intervals, chunks, &producers)
 	}
-	wg.Wait()
+
+	consumers := sync.WaitGroup{}
+	consumers.Add(1)
+	go writeIntervals(config, chunks, &consumers)
+
+	producers.Wait()
+	close(chunks)
+	consumers.Wait()
 }
 
-func generateInterval(
-	interval interval,
-	buffer bytes.Buffer,
-	rnd *rand.Rand,
-	file *os.File,
-	slots *semaphore.Weighted,
-	mutex *sync.Mutex,
-) {
+func sliceIntervals(intervals chan interval, config GenerateConfig) {
+	defer close(intervals)
 
-	for i := interval.start; i < interval.end; i++ {
-		index := rnd.Int63() % int64(len(stations))
-		temperature := rnd.Float32() * 100
-		sign := float32(math.Copysign(1, rnd.NormFloat64()))
+	for i := 0; i < config.totalChunks(); i++ {
+		start := i * config.chunkSize()
+		end := min(config.records, i*config.chunkSize()+config.chunkSize())
 
-		buffer.WriteString(stations[index])
-		buffer.WriteString(";")
-		buffer.WriteString(fmt.Sprintf("%.1f", temperature*sign))
-		buffer.WriteString("\n")
+		intervals <- interval{start, end}
 	}
+}
 
-	just(0, slots.Acquire(context.Background(), 1))
-	defer slots.Release(1)
+func generateIntervals(id int, intervals chan interval, chunks chan *bytes.Buffer, produces *sync.WaitGroup) {
+	defer produces.Done()
 
-	mutex.Lock()
-	defer mutex.Unlock()
+	rnd := rand.New(rand.NewSource(int64(id)))
+	for interval := range intervals {
+		buffer := bytes.Buffer{}
 
-	just(file.Write(buffer.Bytes()))
+		for i := interval.start; i < interval.end; i++ {
+			index := rnd.Int63() % int64(len(stations))
+			temperature := rnd.Float32() * 100
+			sign := float32(math.Copysign(1, rnd.NormFloat64()))
 
-	buffer.Reset()
+			buffer.WriteString(stations[index])
+			buffer.WriteString(";")
+			buffer.WriteString(fmt.Sprintf("%.1f", temperature*sign))
+			buffer.WriteString("\n")
+		}
+		chunks <- &buffer
+	}
+}
+
+func writeIntervals(config GenerateConfig, chunks chan *bytes.Buffer, writers *sync.WaitGroup) {
+	pb := beauty.NewProgressBar(config.totalChunks())
+
+	file := just(os.OpenFile(config.output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
+	defer file.Close()
+
+	for buffer := range chunks {
+		just(file.Write(buffer.Bytes()))
+		pb.Increment()
+	}
+	writers.Done()
 }
 
 func just[T any](result T, err error) T {
