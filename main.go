@@ -32,7 +32,7 @@ var (
 			workers, _ := cmd.Flags().GetInt("workers")
 			chunkSize, _ := cmd.Flags().GetInt("size")
 
-			fmt.Printf("Generating [%d] records\n", records)
+			fmt.Printf("Generating [%d] records with [%d] workers\n", records, workers)
 			fmt.Printf("Output file: [%s]\n", output)
 
 			generate(GenerateConfig{
@@ -47,6 +47,17 @@ var (
 	computeCmd = &cobra.Command{
 		Use:   "compute",
 		Short: "Process measurements",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("Available commands:")
+			for _, command := range cmd.Commands() {
+				fmt.Printf("  %s: %s\n", command.Name(), command.Short)
+			}
+		},
+	}
+
+	computeNaiveCmd = &cobra.Command{
+		Use:   "naive",
+		Short: "A naive implementation of 1brc",
 		Run:   compute(naive),
 	}
 )
@@ -73,6 +84,8 @@ func init() {
 
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(computeCmd)
+
+	computeCmd.AddCommand(computeNaiveCmd)
 }
 
 func main() {

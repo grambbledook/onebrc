@@ -56,7 +56,7 @@ func (p *ProgressBar) Increment() {
 }
 
 func draw(chanel chan state) {
-	previousReading := 0
+	previousReading := -1
 
 	for p := range chanel {
 		percents := int(p.percents)
