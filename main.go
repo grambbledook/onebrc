@@ -12,53 +12,43 @@ import (
 var (
 	rootCmd = &cobra.Command{
 		Use: "obebrc",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Available commands:")
-			for _, command := range cmd.Commands() {
-				fmt.Printf("  %s: %s\n", command.Name(), command.Short)
-			}
-		},
+		Run: printCommands,
 	}
 
 	generateCmd = &cobra.Command{
 		Use:   "generate",
 		Short: "Generate random measurements",
-		Run: func(cmd *cobra.Command, args []string) {
-			startProfiler(cmd)
-			defer stopProfiler(cmd)
-
-			output, _ := cmd.Flags().GetString("output")
-			records, _ := cmd.Flags().GetInt("records")
-			workers, _ := cmd.Flags().GetInt("workers")
-			chunkSize, _ := cmd.Flags().GetInt("size")
-
-			fmt.Printf("Generating [%d] records with [%d] workers\n", records, workers)
-			fmt.Printf("Output file: [%s]\n", output)
-
-			generate(GenerateConfig{
-				output:       output,
-				records:      records,
-				workers:      workers,
-				maxChunkSize: chunkSize,
-			})
-		},
+		Run:   generate,
 	}
 
 	computeCmd = &cobra.Command{
 		Use:   "compute",
 		Short: "Process measurements",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Available commands:")
-			for _, command := range cmd.Commands() {
-				fmt.Printf("  %s: %s\n", command.Name(), command.Short)
-			}
-		},
+		Run:   printCommands,
+	}
+
+	readCmd = &cobra.Command{
+		Use:   "read",
+		Short: "Read measurements file",
+		Run:   printCommands,
+	}
+
+	readBufferCmd = &cobra.Command{
+		Use:   "buffer",
+		Short: "Read measurements file using buffered reader",
+		Run:   read(func(config ComputeConfig) { buffer(config) }),
 	}
 
 	computeNaiveCmd = &cobra.Command{
 		Use:   "naive",
 		Short: "A naive implementation of 1brc",
 		Run:   compute(naive),
+	}
+
+	computePcCmd = &cobra.Command{
+		Use:   "producer-consumer",
+		Short: "A producer-consumer implementation of 1brc",
+		Run:   compute(pc),
 	}
 )
 
@@ -81,11 +71,24 @@ func init() {
 		StringP("file", "f", "measurements.csv", "input file")
 	computeCmd.PersistentFlags().
 		IntP("iterations", "n", 1, "number of iterations to run the computation")
+	computeCmd.PersistentFlags().
+		IntP("buffer", "b", 1024, "buffer size for the buffered reader")
+
+	readCmd.PersistentFlags().
+		StringP("file", "f", "measurements.csv", "input file")
+	readCmd.PersistentFlags().
+		IntP("iterations", "n", 1, "number of iterations to run the computation")
+	readCmd.PersistentFlags().
+		IntP("buffer", "b", 1024, "buffer size for the buffered reader")
 
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(computeCmd)
+	rootCmd.AddCommand(readCmd)
 
 	computeCmd.AddCommand(computeNaiveCmd)
+	computeCmd.AddCommand(computePcCmd)
+
+	readCmd.AddCommand(readBufferCmd)
 }
 
 func main() {
@@ -95,20 +98,57 @@ func main() {
 	}
 }
 
-func compute(f func(string)) func(cmd *cobra.Command, args []string) {
+func printCommands(cmd *cobra.Command, _ []string) {
+	fmt.Println("Available commands:")
+	for _, command := range cmd.Commands() {
+		fmt.Printf("  %s: %s\n", command.Name(), command.Short)
+	}
+}
+
+func generate(cmd *cobra.Command, _ []string) {
+	startProfiler(cmd)
+	defer stopProfiler(cmd)
+
+	config := parseGenerateConfig(cmd)
+
+	fmt.Printf("Generating [%d] records with [%d] workers\n", config.records, config.workers)
+	fmt.Printf("Output file: [%s]\n", config.output)
+
+	generateMeasurements(config)
+}
+
+func read(f func(ComputeConfig)) func(cmd *cobra.Command, _ []string) {
 	return func(cmd *cobra.Command, args []string) {
 		startProfiler(cmd)
 		defer stopProfiler(cmd)
 
-		file, _ := cmd.Flags().GetString("file")
-		iterations, _ := cmd.Flags().GetInt("iterations")
+		config := parseComputeConfig(cmd)
 
 		summary := beauty.NewSummary()
 
-		fmt.Printf("Processing data from file [%s]\n", file)
-		for i := 0; i < iterations; i++ {
+		fmt.Printf("Reading data from file [%s]\n", config.file)
+		for i := 0; i < config.iterations; i++ {
 			start := time.Now()
-			f(file)
+			f(config)
+			summary.Record(int(time.Since(start).Milliseconds()))
+		}
+		fmt.Printf("Reading data completed, summary [%s]\n", summary.Summary())
+	}
+}
+
+func compute(f func(ComputeConfig)) func(cmd *cobra.Command, _ []string) {
+	return func(cmd *cobra.Command, args []string) {
+		startProfiler(cmd)
+		defer stopProfiler(cmd)
+
+		config := parseComputeConfig(cmd)
+
+		summary := beauty.NewSummary()
+
+		fmt.Printf("Processing data from file [%s]\n", config.file)
+		for i := 0; i < config.iterations; i++ {
+			start := time.Now()
+			f(config)
 			summary.Record(int(time.Since(start).Milliseconds()))
 		}
 		fmt.Printf("Processing data completed, summary [%s]\n", summary.Summary())
@@ -116,8 +156,8 @@ func compute(f func(string)) func(cmd *cobra.Command, args []string) {
 }
 
 func startProfiler(cmd *cobra.Command) {
-	runProfiler, _ := cmd.Flags().GetBool("p")
-	profileFile, _ := cmd.Flags().GetString("profiler_output")
+	runProfiler := try(cmd.Flags().GetBool("p"))
+	profileFile := try(cmd.Flags().GetString("profiler_output"))
 
 	if runProfiler {
 		fmt.Printf("Starting CPU profiler\n")
@@ -130,11 +170,37 @@ func startProfiler(cmd *cobra.Command) {
 	}
 }
 func stopProfiler(cmd *cobra.Command) {
-	runProfiler, _ := cmd.Flags().GetBool("p")
-	profileFile, _ := cmd.Flags().GetString("profiler_output")
+	runProfiler := try(cmd.Flags().GetBool("p"))
+	profileFile := try(cmd.Flags().GetString("profiler_output"))
 
 	if runProfiler {
 		fmt.Printf("Stopping CPU profiler, output file: [%s]\n", profileFile)
 		pprof.StopCPUProfile()
+	}
+}
+
+func parseGenerateConfig(cmd *cobra.Command) GenerateConfig {
+	output := try(cmd.Flags().GetString("output"))
+	records := try(cmd.Flags().GetInt("records"))
+	workers := try(cmd.Flags().GetInt("workers"))
+	chunkSize := try(cmd.Flags().GetInt("size"))
+
+	return GenerateConfig{
+		output:       output,
+		records:      records,
+		workers:      workers,
+		maxChunkSize: chunkSize,
+	}
+}
+
+func parseComputeConfig(cmd *cobra.Command) ComputeConfig {
+	file := try(cmd.Flags().GetString("file"))
+	iterations := try(cmd.Flags().GetInt("iterations"))
+	buffer := try(cmd.Flags().GetInt("buffer"))
+
+	return ComputeConfig{
+		file:       file,
+		iterations: iterations,
+		bufferSize: buffer,
 	}
 }

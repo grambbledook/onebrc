@@ -10,23 +10,12 @@ import (
 	"sync"
 )
 
-type GenerateConfig struct {
-	output       string
-	records      int
-	maxChunkSize int
-	workers      int
-	_            struct{}
+type interval struct {
+	start int
+	end   int
 }
 
-func (c GenerateConfig) chunkSize() int {
-	return min(c.records, c.maxChunkSize)
-}
-
-func (c GenerateConfig) totalChunks() int {
-	return c.records / c.chunkSize()
-}
-
-func generate(config GenerateConfig) {
+func generateMeasurements(config GenerateConfig) {
 	intervals := make(chan interval)
 	go sliceIntervals(intervals, config)
 
@@ -81,22 +70,14 @@ func generateIntervals(id int, intervals chan interval, chunks chan *bytes.Buffe
 func writeIntervals(config GenerateConfig, chunks chan *bytes.Buffer, writers *sync.WaitGroup) {
 	pb := beauty.NewProgressBar(config.totalChunks())
 
-	file := just(os.OpenFile(config.output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
-	defer file.Close()
+	file := try(os.OpenFile(config.output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
+	defer try(0, file.Close())
 
 	for buffer := range chunks {
-		just(file.Write(buffer.Bytes()))
+		try(file.Write(buffer.Bytes()))
 		pb.Increment()
 	}
 	writers.Done()
-}
-
-func just[T any](result T, err error) T {
-	if err != nil {
-		fmt.Printf("An error occured duting processing [%s]", err)
-		panic(err)
-	}
-	return result
 }
 
 var stations = []string{
@@ -513,9 +494,4 @@ var stations = []string{
 	"Zagreb",
 	"Zanzibar City",
 	"Zürich",
-}
-
-type interval struct {
-	start int
-	end   int
 }
