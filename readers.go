@@ -101,12 +101,8 @@ func readChunk(config ComputeConfig, start, end int, out chan string, id int) {
 	count := 0
 	for {
 		line, err := data.ReadBytes('\n')
-		if count == 0 {
-			println("Worker", id, "first line", string(line))
-		}
 
-		if err == io.EOF || totalBytesRead-1 > end-start {
-			println("Worker", id, "total bytes", totalBytesRead, "last line", string(line))
+		if err == io.EOF || totalBytesRead > end-start {
 			out <- strconv.Itoa(count)
 			break
 		}

@@ -68,6 +68,12 @@ var (
 		Short: "A parallel producer-consumer implementation of 1brc",
 		Run:   compute(pcp),
 	}
+
+	computePcpStagedCmd = &cobra.Command{
+		Use:   "staged",
+		Short: "A parallel staged producer-consumer implementation of 1brc",
+		Run:   compute(pcpStaged),
+	}
 )
 
 func init() {
@@ -106,6 +112,7 @@ func init() {
 	computeCmd.AddCommand(computeNaiveCmd)
 	computeCmd.AddCommand(computePcCmd)
 	computeCmd.AddCommand(computePcpCmd)
+	computeCmd.AddCommand(computePcpStagedCmd)
 
 	readCmd.AddCommand(readBufferCmd)
 	readCmd.AddCommand(readBytesCmd)

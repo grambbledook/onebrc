@@ -37,6 +37,13 @@ func TestParallel(t *testing.T) {
 	suite.Run(t, testingSuite)
 }
 
+func TestParallelStaged(t *testing.T) {
+	testingSuite := new(TestSuite)
+	testingSuite.execute = pcpStaged
+
+	suite.Run(t, testingSuite)
+}
+
 type TestData struct {
 	input  string
 	output string

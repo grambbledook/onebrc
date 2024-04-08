@@ -8,43 +8,40 @@ import (
 	"sync"
 )
 
-func pcp(config ComputeConfig) {
+func pcpStaged(config ComputeConfig) {
 	file := try(os.Stat(config.file))
 
-	workers := runtime.NumCPU()
+	workers := runtime.NumCPU() / 2
 	chunkSize := int(file.Size()) / workers
 
-	readers := sync.WaitGroup{}
-	readers.Add(workers)
+	aggregators := sync.WaitGroup{}
+	aggregators.Add(workers)
 
 	aggregates := make(chan map[string]*Aggregate, workers)
+
 	for i := 0; i < workers; i++ {
+		buffer := make(chan string, 500)
 
 		start, end := i*chunkSize, (i+1)*chunkSize
 		if i == workers-1 {
 			end = int(file.Size())
 		}
-		go reader(i, config, start, end, aggregates, &readers)
+		go reader2(i, config, start, end, buffer)
+		go aggregator(buffer, aggregates, &aggregators)
 	}
 
 	reducers := sync.WaitGroup{}
 	reducers.Add(1)
 	go reduce(aggregates, &reducers)
 
-	readers.Wait()
+	aggregators.Wait()
 	close(aggregates)
 
 	reducers.Wait()
 }
 
-func reader(
-	id int,
-	config ComputeConfig,
-	start, end int,
-	aggregates chan map[string]*Aggregate,
-	wg *sync.WaitGroup,
-) {
-	defer wg.Done()
+func reader2(id int, config ComputeConfig, start, end int, buffer chan string) {
+	defer close(buffer)
 
 	file := try(os.Open(config.file))
 	try(file.Seek(int64(start), io.SeekStart))
@@ -58,8 +55,6 @@ func reader(
 		totalBytes += len(line)
 	}
 
-	cities := make(map[string]*Aggregate)
-	total := 0
 	for totalBytes <= end-start {
 		line, err := in.ReadString('\n')
 		if err == io.EOF {
@@ -69,8 +64,17 @@ func reader(
 			panic(err)
 		}
 		totalBytes += len(line)
-		total++
 
+		buffer <- line
+	}
+}
+
+func aggregator(buffer chan string, aggregates chan map[string]*Aggregate, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	cities := make(map[string]*Aggregate)
+
+	for line := range buffer {
 		city, temperature := parse(line)
 		aggregate, ok := cities[city]
 		if !ok {
@@ -86,28 +90,4 @@ func reader(
 		aggregate.count += 1
 	}
 	aggregates <- cities
-}
-
-func reduce(input chan map[string]*Aggregate, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	cities := make([]string, 0)
-	aggregates := make(map[string]*Aggregate)
-
-	for chunk := range input {
-		for city, other := range chunk {
-			this, ok := aggregates[city]
-			if !ok {
-				cities = append(cities, city)
-				aggregates[city] = other
-				continue
-			}
-			this.max = max(this.max, other.max)
-			this.min = min(this.min, other.min)
-			this.sum += other.sum
-			this.count += other.count
-		}
-	}
-
-	render(cities, aggregates)
 }

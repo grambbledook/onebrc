@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"io"
 	"os"
-	"strings"
 	"sync"
 )
 
@@ -27,10 +26,6 @@ func chain(config ComputeConfig) {
 			if err != nil {
 				close(lines)
 				panic(err)
-			}
-
-			if strings.HasPrefix(line, "#") {
-				continue
 			}
 
 			lines <- line

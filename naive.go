@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"io"
 	"os"
-	"strings"
 )
 
 func naive(config ComputeConfig) {
@@ -17,9 +16,6 @@ func naive(config ComputeConfig) {
 		line, err := data.ReadString('\n')
 		if err == io.EOF {
 			break
-		}
-		if strings.HasPrefix(line, "#") {
-			continue
 		}
 
 		city, temperature := parse(line)
