@@ -39,6 +39,18 @@ var (
 		Run:   read(func(config ComputeConfig) { buffer(config) }),
 	}
 
+	readBytesCmd = &cobra.Command{
+		Use:   "bytes",
+		Short: "Read measurements file using buffered reader",
+		Run:   read(func(config ComputeConfig) { readBytes(config) }),
+	}
+
+	readParallelCmd = &cobra.Command{
+		Use:   "parallel",
+		Short: "Read measurements file using buffered reader",
+		Run:   read(func(config ComputeConfig) { bufferParallel(config) }),
+	}
+
 	computeNaiveCmd = &cobra.Command{
 		Use:   "naive",
 		Short: "A naive implementation of 1brc",
@@ -46,9 +58,15 @@ var (
 	}
 
 	computePcCmd = &cobra.Command{
-		Use:   "producer-consumer",
+		Use:   "chain",
 		Short: "A producer-consumer implementation of 1brc",
-		Run:   compute(pc),
+		Run:   compute(chain),
+	}
+
+	computePcpCmd = &cobra.Command{
+		Use:   "parallel",
+		Short: "A parallel producer-consumer implementation of 1brc",
+		Run:   compute(pcp),
 	}
 )
 
@@ -87,8 +105,11 @@ func init() {
 
 	computeCmd.AddCommand(computeNaiveCmd)
 	computeCmd.AddCommand(computePcCmd)
+	computeCmd.AddCommand(computePcpCmd)
 
 	readCmd.AddCommand(readBufferCmd)
+	readCmd.AddCommand(readBytesCmd)
+	readCmd.AddCommand(readParallelCmd)
 }
 
 func main() {

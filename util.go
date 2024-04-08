@@ -66,7 +66,6 @@ func render(cities []string, aggregates map[string]*Aggregate) {
 		if i > 0 {
 			fmt.Print(", ")
 		}
-
 		a := aggregates[city]
 		fmt.Printf("%s=%.1f/%.1f/%.1f",
 			city,

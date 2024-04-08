@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-func pc(config ComputeConfig) {
+func chain(config ComputeConfig) {
 	data := bufio.NewReaderSize(try(os.Open(config.file)), config.bufferSize)
 
 	cities := make([]string, 0)

@@ -1,8 +1,9 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 	"io"
 	"os"
 	"path/filepath"
@@ -10,12 +11,38 @@ import (
 	"testing"
 )
 
+type TestSuite struct {
+	suite.Suite
+	execute func(computeConfig ComputeConfig)
+}
+
+func TestNaive(t *testing.T) {
+	testingSuite := new(TestSuite)
+	testingSuite.execute = naive
+
+	suite.Run(t, testingSuite)
+}
+
+func TestChain(t *testing.T) {
+	testingSuite := new(TestSuite)
+	testingSuite.execute = chain
+
+	suite.Run(t, testingSuite)
+}
+
+func TestParallel(t *testing.T) {
+	testingSuite := new(TestSuite)
+	testingSuite.execute = pcp
+
+	suite.Run(t, testingSuite)
+}
+
 type TestData struct {
 	input  string
 	output string
 }
 
-func Test_CalculateAggregates_Short(t *testing.T) {
+func (s *TestSuite) Test_CalculateAggregates_Short() {
 
 	for _, test := range []TestData{
 		{"measurements-1.txt", "measurements-1.out"},
@@ -29,42 +56,53 @@ func Test_CalculateAggregates_Short(t *testing.T) {
 		{"measurements-short.txt", "measurements-short.out"},
 		{"measurements-shortest.txt", "measurements-shortest.out"},
 	} {
-		executeTest(t, test)
+		s.executeTest(test)
 	}
 }
 
-func Test_CalculateAggregates_Long(t *testing.T) {
+func (s *TestSuite) Test_CalculateAggregates_Long() {
 
 	for _, test := range []TestData{
 		{"measurements-10000-unique-keys.txt", "measurements-10000-unique-keys.out"},
 	} {
-		executeTest(t, test)
+		s.executeTest(test)
 	}
 }
 
-func Test_CalculateAggregates_Rounding(t *testing.T) {
+func (s *TestSuite) Test_CalculateAggregates_Rounding() {
 
 	for _, test := range []TestData{
 		{"measurements-rounding.txt", "measurements-rounding.out"},
 	} {
-		executeTest(t, test)
+		s.executeTest(test)
 	}
 }
 
-func executeTest(t *testing.T, test TestData) {
+func (s *TestSuite) executeTest(test TestData) {
 	out := os.Stdout
 	defer func() { os.Stdout = out }()
 
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	naive(path(test.input))
+	ch := make(chan string)
+	go readFromPipe(r, ch)
 
-	result := actual(r)
+	go s.execute(config(test.input))
+
+	result := actual(ch)
 	expected := expected(path(test.output))
 
-	if ok := assert.Equal(t, expected, result); !ok {
-		t.Errorf("Failed for file: [%s]", test.input)
+	if ok := assert.Equal(s.T(), expected, result); !ok {
+		s.T().Errorf("Failed for file: [%s]", test.input)
+	}
+}
+
+func config(name string) ComputeConfig {
+	path, _ := filepath.Abs(filepath.Join("src/test/resources/samples", name))
+	return ComputeConfig{
+		file:       path,
+		bufferSize: 1024,
 	}
 }
 
@@ -73,9 +111,29 @@ func path(name string) string {
 	return path
 }
 
-func actual(r io.Reader) string {
-	data, _ := bufio.NewReader(r).ReadString('}')
-	return data
+func readFromPipe(r io.Reader, ch chan string) {
+	for {
+		buf := make([]byte, 1024)
+		n := try(r.Read(buf))
+		if n == 0 {
+			continue
+		}
+
+		s := string(buf[:n])
+		ch <- strings.TrimSuffix(s, "\n")
+		if bytes.IndexByte(buf, '}') != -1 {
+			break
+		}
+	}
+	close(ch)
+}
+
+func actual(ch chan string) string {
+	result := bytes.Buffer{}
+	for line := range ch {
+		result.WriteString(line)
+	}
+	return result.String()
 }
 
 func expected(path string) string {
