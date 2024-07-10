@@ -134,8 +134,7 @@ func printCommands(cmd *cobra.Command, _ []string) {
 }
 
 func generate(cmd *cobra.Command, _ []string) {
-	startProfiler(cmd)
-	defer stopProfiler(cmd)
+	defer withProfiler(cmd)()
 
 	config := parseGenerateConfig(cmd)
 
@@ -147,8 +146,7 @@ func generate(cmd *cobra.Command, _ []string) {
 
 func read(f func(ComputeConfig)) func(cmd *cobra.Command, _ []string) {
 	return func(cmd *cobra.Command, args []string) {
-		startProfiler(cmd)
-		defer stopProfiler(cmd)
+		defer withProfiler(cmd)()
 
 		config := parseComputeConfig(cmd)
 
@@ -166,8 +164,7 @@ func read(f func(ComputeConfig)) func(cmd *cobra.Command, _ []string) {
 
 func compute(f func(ComputeConfig)) func(cmd *cobra.Command, _ []string) {
 	return func(cmd *cobra.Command, args []string) {
-		startProfiler(cmd)
-		defer stopProfiler(cmd)
+		defer withProfiler(cmd)()
 
 		config := parseComputeConfig(cmd)
 
@@ -183,35 +180,33 @@ func compute(f func(ComputeConfig)) func(cmd *cobra.Command, _ []string) {
 	}
 }
 
-func startProfiler(cmd *cobra.Command) {
-	runProfiler := try(cmd.Flags().GetBool("p"))
-	profileFile := try(cmd.Flags().GetString("profiler_output"))
+func withProfiler(cmd *cobra.Command) func() {
+	runProfiler := Must(cmd.Flags().GetBool("p"))
+	profileFile := Must(cmd.Flags().GetString("profiler_output"))
 
-	if runProfiler {
-		fmt.Printf("Starting CPU profiler\n")
-
-		file, _ := os.Create(profileFile)
-		if err := pprof.StartCPUProfile(file); err != nil {
-			fmt.Printf("Failed to start the CPU profiler: [%s]\n", err)
-			return
-		}
+	if !runProfiler {
+		return func() {}
 	}
-}
-func stopProfiler(cmd *cobra.Command) {
-	runProfiler := try(cmd.Flags().GetBool("p"))
-	profileFile := try(cmd.Flags().GetString("profiler_output"))
 
-	if runProfiler {
+	fmt.Printf("Starting CPU profiler\n")
+
+	file, _ := os.Create(profileFile)
+	if err := pprof.StartCPUProfile(file); err != nil {
+		fmt.Printf("Failed to start the CPU profiler: [%s]\n", err)
+		return nil
+	}
+
+	return func() {
 		fmt.Printf("Stopping CPU profiler, output file: [%s]\n", profileFile)
 		pprof.StopCPUProfile()
 	}
 }
 
 func parseGenerateConfig(cmd *cobra.Command) GenerateConfig {
-	output := try(cmd.Flags().GetString("output"))
-	records := try(cmd.Flags().GetInt("records"))
-	workers := try(cmd.Flags().GetInt("workers"))
-	chunkSize := try(cmd.Flags().GetInt("size"))
+	output := Must(cmd.Flags().GetString("output"))
+	records := Must(cmd.Flags().GetInt("records"))
+	workers := Must(cmd.Flags().GetInt("workers"))
+	chunkSize := Must(cmd.Flags().GetInt("size"))
 
 	return GenerateConfig{
 		output:       output,
@@ -222,9 +217,9 @@ func parseGenerateConfig(cmd *cobra.Command) GenerateConfig {
 }
 
 func parseComputeConfig(cmd *cobra.Command) ComputeConfig {
-	file := try(cmd.Flags().GetString("file"))
-	iterations := try(cmd.Flags().GetInt("iterations"))
-	buffer := try(cmd.Flags().GetInt("buffer"))
+	file := Must(cmd.Flags().GetString("file"))
+	iterations := Must(cmd.Flags().GetInt("iterations"))
+	buffer := Must(cmd.Flags().GetInt("buffer"))
 
 	return ComputeConfig{
 		file:       file,

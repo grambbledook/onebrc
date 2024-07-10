@@ -17,13 +17,13 @@ type interval struct {
 
 func generateMeasurements(config GenerateConfig) {
 	intervals := make(chan interval)
-	go sliceIntervals(intervals, config)
+	go generateIntervals(intervals, config)
 
 	producers := sync.WaitGroup{}
 	chunks := make(chan *bytes.Buffer)
 	for id := 0; id < config.workers; id++ {
 		producers.Add(1)
-		go generateIntervals(id, intervals, chunks, &producers)
+		go generateData(id, intervals, chunks, &producers)
 	}
 
 	consumers := sync.WaitGroup{}
@@ -35,7 +35,7 @@ func generateMeasurements(config GenerateConfig) {
 	consumers.Wait()
 }
 
-func sliceIntervals(intervals chan interval, config GenerateConfig) {
+func generateIntervals(intervals chan interval, config GenerateConfig) {
 	defer close(intervals)
 
 	for i := 0; i < config.totalChunks(); i++ {
@@ -46,7 +46,7 @@ func sliceIntervals(intervals chan interval, config GenerateConfig) {
 	}
 }
 
-func generateIntervals(id int, intervals chan interval, chunks chan *bytes.Buffer, produces *sync.WaitGroup) {
+func generateData(id int, intervals chan interval, chunks chan *bytes.Buffer, produces *sync.WaitGroup) {
 	defer produces.Done()
 
 	rnd := rand.New(rand.NewSource(int64(id)))
@@ -70,11 +70,11 @@ func generateIntervals(id int, intervals chan interval, chunks chan *bytes.Buffe
 func writeIntervals(config GenerateConfig, chunks chan *bytes.Buffer, writers *sync.WaitGroup) {
 	pb := beauty.NewProgressBar(config.totalChunks())
 
-	file := try(os.OpenFile(config.output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
-	defer try(0, file.Close())
+	file := Must(os.OpenFile(config.output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
+	defer Cleanup(file)
 
 	for buffer := range chunks {
-		try(file.Write(buffer.Bytes()))
+		Must(file.Write(buffer.Bytes()))
 		pb.Increment()
 	}
 	writers.Done()

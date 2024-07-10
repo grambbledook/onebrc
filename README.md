@@ -30,3 +30,28 @@ Global Flags:
 onebrc generate -o measurements.csv -r 1000000000  -w 50 -s 1000000
 ```
 
+## Process measurements
+```
+Usage:
+  obebrc generate [flags]
+
+Modes:
+  chain: A producer-consumer implementation of 1brc
+  naive: A naive implementation of 1brc
+  parallel: A parallel producer-consumer implementation of 1brc
+  staged: A parallel staged producer-consumer implementation of 1brc
+
+Flags:
+  -b, --buffer int               buffer size for the buffered reader (default 1024)
+  -f, --file string              input file (default "measurements.csv")
+  -n, --iterations int           number of iterations to run the computation (default 1)
+  
+Global Flags:
+      --p                        enable cpu profiling
+      --profiler_output string   cpu profiler output file (default "cpu.prof")
+```
+
+```
+onebrc compute parallel -f measurements.csv -n 5
+```
+

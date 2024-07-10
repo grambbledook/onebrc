@@ -9,7 +9,7 @@ import (
 )
 
 func pcp(config ComputeConfig) {
-	file := try(os.Stat(config.file))
+	file := Must(os.Stat(config.file))
 
 	workers := runtime.NumCPU()
 	chunkSize := int(file.Size()) / workers
@@ -46,15 +46,15 @@ func reader(
 ) {
 	defer wg.Done()
 
-	file := try(os.Open(config.file))
-	try(file.Seek(int64(start), io.SeekStart))
+	file := Must(os.Open(config.file))
+	Must(file.Seek(int64(start), io.SeekStart))
 	defer file.Close()
 
 	in := bufio.NewReaderSize(file, config.bufferSize)
 
 	totalBytes := 0
 	if id != 0 {
-		line := try(in.ReadBytes('\n'))
+		line := Must(in.ReadBytes('\n'))
 		totalBytes += len(line)
 	}
 

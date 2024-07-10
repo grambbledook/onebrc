@@ -7,7 +7,7 @@ import (
 )
 
 func naive(config ComputeConfig) {
-	data := bufio.NewReaderSize(try(os.Open(config.file)), config.bufferSize)
+	data := bufio.NewReaderSize(Must(os.Open(config.file)), config.bufferSize)
 
 	cities := make([]string, 0)
 	aggregates := make(map[string]*Aggregate)

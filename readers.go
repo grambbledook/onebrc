@@ -10,7 +10,7 @@ import (
 )
 
 func buffer(config ComputeConfig) int {
-	data := bufio.NewReaderSize(try(os.Open(config.file)), config.bufferSize)
+	data := bufio.NewReaderSize(Must(os.Open(config.file)), config.bufferSize)
 
 	lines := make(chan string)
 	count := 0
@@ -36,7 +36,7 @@ func buffer(config ComputeConfig) int {
 }
 
 func readBytes(config ComputeConfig) int {
-	data := bufio.NewReaderSize(try(os.Open(config.file)), config.bufferSize)
+	data := bufio.NewReaderSize(Must(os.Open(config.file)), config.bufferSize)
 
 	lines := make(chan string)
 	count := 0
@@ -58,7 +58,7 @@ func readBytes(config ComputeConfig) int {
 }
 
 func bufferParallel(config ComputeConfig) int {
-	f := try(os.Stat(config.file))
+	f := Must(os.Stat(config.file))
 
 	workers := runtime.NumCPU()
 	size := int(f.Size()) / workers
@@ -85,16 +85,16 @@ func bufferParallel(config ComputeConfig) int {
 func readChunk(config ComputeConfig, start, end int, out chan string, id int) {
 	defer close(out)
 
-	file := try(os.Open(config.file))
+	file := Must(os.Open(config.file))
 	defer file.Close()
 
-	try(file.Seek(int64(start), io.SeekStart))
+	Must(file.Seek(int64(start), io.SeekStart))
 
 	println("Worker", id, "started", "total bytes to read", end-start)
 	data := bufio.NewReaderSize(file, config.bufferSize)
 	totalBytesRead := 0
 	if id != 0 {
-		line := try(data.ReadBytes('\n'))
+		line := Must(data.ReadBytes('\n'))
 		totalBytesRead += len(line)
 	}
 

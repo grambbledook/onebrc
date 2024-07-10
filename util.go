@@ -40,9 +40,20 @@ type Aggregate struct {
 	count int
 }
 
-func try[T any](t T, err error) T {
+type Closable interface {
+	Close() error
+}
+
+func Cleanup(resource Closable) {
+	err := resource.Close()
 	if err != nil {
-		fmt.Printf("An error occured duting processing [%s]", err)
+		fmt.Printf("An error occured during processing [%s]", err)
+		panic(err)
+	}
+}
+func Must[T any](t T, err error) T {
+	if err != nil {
+		fmt.Printf("An error occured during processing [%s]", err)
 		panic(err)
 	}
 	return t
@@ -53,7 +64,7 @@ func parse(line string) (string, float32) {
 	idx := strings.Index(line, delimiter)
 
 	city := line[:idx]
-	temperature := try(strconv.ParseFloat(line[idx+1:length-1], 32))
+	temperature := Must(strconv.ParseFloat(line[idx+1:length-1], 32))
 
 	return city, float32(temperature)
 }

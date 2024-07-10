@@ -121,7 +121,7 @@ func path(name string) string {
 func readFromPipe(r io.Reader, ch chan string) {
 	for {
 		buf := make([]byte, 1024)
-		n := try(r.Read(buf))
+		n := Must(r.Read(buf))
 		if n == 0 {
 			continue
 		}
