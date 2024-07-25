@@ -77,7 +77,6 @@ type TestData struct {
 }
 
 func (s *TestSuite) Test_CalculateAggregates_Short() {
-
 	for _, test := range []TestData{
 		{"measurements-1.txt", "measurements-1.out"},
 		{"measurements-2.txt", "measurements-2.out"},
@@ -95,7 +94,6 @@ func (s *TestSuite) Test_CalculateAggregates_Short() {
 }
 
 func (s *TestSuite) Test_CalculateAggregates_Long() {
-
 	for _, test := range []TestData{
 		{"measurements-10000-unique-keys.txt", "measurements-10000-unique-keys.out"},
 	} {
@@ -104,7 +102,6 @@ func (s *TestSuite) Test_CalculateAggregates_Long() {
 }
 
 func (s *TestSuite) Test_CalculateAggregates_Rounding() {
-
 	for _, test := range []TestData{
 		{"measurements-rounding.txt", "measurements-rounding.out"},
 	} {
@@ -113,8 +110,7 @@ func (s *TestSuite) Test_CalculateAggregates_Rounding() {
 }
 
 func (s *TestSuite) executeTest(test TestData) {
-	out := os.Stdout
-	defer func() { os.Stdout = out }()
+	defer rollbackStdoutPipeOnExit()()
 
 	r, w, _ := os.Pipe()
 	os.Stdout = w
@@ -122,13 +118,21 @@ func (s *TestSuite) executeTest(test TestData) {
 	ch := make(chan string)
 	go readFromPipe(r, ch)
 
-	go s.taskProvider(path(test.input))
+	task := s.taskProvider(path(test.input))
+	go task.Execute()
 
 	result := actual(ch)
 	expected := expected(path(test.output))
 
 	if ok := assert.Equal(s.T(), expected, result); !ok {
 		s.T().Errorf("Failed for file: [%s]", test.input)
+	}
+}
+
+func rollbackStdoutPipeOnExit() func() {
+	out := os.Stdout
+	return func() {
+		os.Stdout = out
 	}
 }
 
