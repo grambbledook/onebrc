@@ -5,3 +5,7 @@ type Task interface {
 	File() string
 	Execute()
 }
+
+type Closable interface {
+	Close() error
+}

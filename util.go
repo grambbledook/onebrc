@@ -10,17 +10,6 @@ import (
 
 const delimiter = ";"
 
-type Aggregate struct {
-	min   float32
-	max   float32
-	sum   float32
-	count int
-}
-
-type Closable interface {
-	Close() error
-}
-
 func Cleanup(resource Closable) {
 	err := resource.Close()
 	if err != nil {
