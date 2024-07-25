@@ -6,8 +6,22 @@ import (
 	"os"
 )
 
-func naive(config ComputeConfig) {
-	data := bufio.NewReaderSize(Must(os.Open(config.file)), config.bufferSize)
+type NaiveComputeTask struct {
+	file       string
+	bufferSize int
+	_          struct{}
+}
+
+func (t NaiveComputeTask) Name() string {
+	return "Naive"
+}
+
+func (t NaiveComputeTask) File() string {
+	return t.file
+}
+
+func (t NaiveComputeTask) Execute() {
+	data := bufio.NewReaderSize(Must(os.Open(t.file)), t.bufferSize)
 
 	cities := make([]string, 0)
 	aggregates := make(map[string]*Aggregate)

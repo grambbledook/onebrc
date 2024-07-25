@@ -7,8 +7,22 @@ import (
 	"sync"
 )
 
-func chain(config ComputeConfig) {
-	data := bufio.NewReaderSize(Must(os.Open(config.file)), config.bufferSize)
+type ProducerConsumerTask struct {
+	file       string
+	bufferSize int
+	_          struct{}
+}
+
+func (t ProducerConsumerTask) Name() string {
+	return "Producer-Consumer Task"
+}
+
+func (t ProducerConsumerTask) File() string {
+	return t.file
+}
+
+func (t ProducerConsumerTask) Execute() {
+	data := bufio.NewReaderSize(Must(os.Open(t.file)), t.bufferSize)
 
 	cities := make([]string, 0)
 	aggregates := make(map[string]*Aggregate)

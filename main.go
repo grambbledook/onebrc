@@ -9,70 +9,74 @@ import (
 	"time"
 )
 
+type ExecutionConfig struct {
+	Iterations int
+}
+
 var (
 	rootCmd = &cobra.Command{
 		Use: "obebrc",
-		Run: printCommands,
+		Run: PrintCommands,
 	}
 
 	generateCmd = &cobra.Command{
 		Use:   "generate",
 		Short: "Generate random measurements",
-		Run:   generate,
+		Run:   Generate,
 	}
 
 	computeCmd = &cobra.Command{
 		Use:   "compute",
 		Short: "Process measurements",
-		Run:   printCommands,
+		Run:   PrintCommands,
 	}
 
 	readCmd = &cobra.Command{
 		Use:   "read",
 		Short: "Read measurements file",
-		Run:   printCommands,
+		Run:   PrintCommands,
 	}
 
 	readBufferCmd = &cobra.Command{
 		Use:   "buffer",
 		Short: "Read measurements file using buffered reader",
-		Run:   read(func(config ComputeConfig) { buffer(config) }),
+		Run:   Compute(CreateBufferedReaderTask),
 	}
 
 	readBytesCmd = &cobra.Command{
 		Use:   "bytes",
 		Short: "Read measurements file using buffered reader",
-		Run:   read(func(config ComputeConfig) { readBytes(config) }),
+		Run:   Compute(CreateBufferedReaderBytesTask),
 	}
 
 	readParallelCmd = &cobra.Command{
 		Use:   "parallel",
 		Short: "Read measurements file using buffered reader",
-		Run:   read(func(config ComputeConfig) { bufferParallel(config) }),
+		Run:   Compute(CreateParallelReaderTask),
 	}
 
 	computeNaiveCmd = &cobra.Command{
 		Use:   "naive",
 		Short: "A naive implementation of 1brc",
-		Run:   compute(naive),
+		Run:   Compute(CreateNaiveTask),
 	}
 
 	computePcCmd = &cobra.Command{
-		Use:   "chain",
+		Use:   "sequential",
 		Short: "A producer-consumer implementation of 1brc",
-		Run:   compute(chain),
+		Run:   Compute(CreateProducerConsumerTask),
 	}
 
 	computePcpCmd = &cobra.Command{
 		Use:   "parallel",
 		Short: "A parallel producer-consumer implementation of 1brc",
-		Run:   compute(pcp),
+		Run:   Compute(CreateParallelProducerConsumerTask),
 	}
 
 	computePcpStagedCmd = &cobra.Command{
 		Use:   "staged",
 		Short: "A parallel staged producer-consumer implementation of 1brc",
-		Run:   compute(pcpStaged),
+		Run:   Compute(CreateParallelStagedProducerConsumerTask),
 	}
 )
 
@@ -85,11 +89,11 @@ func init() {
 	generateCmd.Flags().
 		StringP("output", "o", "measurements.csv", "output file")
 	generateCmd.Flags().
-		IntP("records", "r", 100, "number of records to generate")
+		IntP("records", "r", 100, "number of records to Generate")
 	generateCmd.Flags().
 		IntP("workers", "w", 1, "number of workers")
 	generateCmd.Flags().
-		IntP("size", "s", 1, "size of the chunk to generate")
+		IntP("size", "s", 1, "size of the chunk to Generate")
 
 	computeCmd.PersistentFlags().
 		StringP("file", "f", "measurements.csv", "input file")
@@ -119,68 +123,49 @@ func init() {
 	readCmd.AddCommand(readParallelCmd)
 }
 
-func main() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Printf("Process failed with an error: [%s]\n", err)
-		os.Exit(1)
-	}
-}
-
-func printCommands(cmd *cobra.Command, _ []string) {
+func PrintCommands(cmd *cobra.Command, _ []string) {
 	fmt.Println("Available commands:")
 	for _, command := range cmd.Commands() {
 		fmt.Printf("  %s: %s\n", command.Name(), command.Short)
 	}
 }
 
-func generate(cmd *cobra.Command, _ []string) {
-	defer withProfiler(cmd)()
+func Generate(cmd *cobra.Command, _ []string) {
+	defer WithProfiler(cmd)()
 
-	config := parseGenerateConfig(cmd)
+	task := CreateGenerateTask(cmd)
 
-	fmt.Printf("Generating [%d] records with [%d] workers\n", config.records, config.workers)
-	fmt.Printf("Output file: [%s]\n", config.output)
+	fmt.Printf("Generating [%d] records with [%d] workers\n", task.records, task.workers)
+	fmt.Printf("Output file: [%s]\n", task.output)
 
-	generateMeasurements(config)
+	task.Execute()
 }
 
-func read(f func(ComputeConfig)) func(cmd *cobra.Command, _ []string) {
+func Compute(createTask func(cmd *cobra.Command) Task) func(cmd *cobra.Command, _ []string) {
 	return func(cmd *cobra.Command, args []string) {
-		defer withProfiler(cmd)()
+		defer WithProfiler(cmd)()
 
-		config := parseComputeConfig(cmd)
+		executionConfig := CreateExecutionConfig(cmd)
+		task := createTask(cmd)
 
 		summary := beauty.NewSummary()
 
-		fmt.Printf("Reading data from file [%s]\n", config.file)
-		for i := 0; i < config.iterations; i++ {
+		fmt.Printf("Executing task [%s]\n", task.Name())
+		fmt.Printf(" Processing data from the file: [%s]\n", task.File())
+
+		for i := 0; i < executionConfig.Iterations; i++ {
 			start := time.Now()
-			f(config)
+
+			task.Execute()
+
 			summary.Record(int(time.Since(start).Milliseconds()))
 		}
-		fmt.Printf("Reading data completed, summary [%s]\n", summary.Summary())
+
+		fmt.Printf(" Task completed, summary [%s]\n", summary.Summary())
 	}
 }
 
-func compute(f func(ComputeConfig)) func(cmd *cobra.Command, _ []string) {
-	return func(cmd *cobra.Command, args []string) {
-		defer withProfiler(cmd)()
-
-		config := parseComputeConfig(cmd)
-
-		summary := beauty.NewSummary()
-
-		fmt.Printf("Processing data from file [%s]\n", config.file)
-		for i := 0; i < config.iterations; i++ {
-			start := time.Now()
-			f(config)
-			summary.Record(int(time.Since(start).Milliseconds()))
-		}
-		fmt.Printf("Processing data completed, summary [%s]\n", summary.Summary())
-	}
-}
-
-func withProfiler(cmd *cobra.Command) func() {
+func WithProfiler(cmd *cobra.Command) func() {
 	runProfiler := Must(cmd.Flags().GetBool("p"))
 	profileFile := Must(cmd.Flags().GetString("profiler_output"))
 
@@ -202,13 +187,13 @@ func withProfiler(cmd *cobra.Command) func() {
 	}
 }
 
-func parseGenerateConfig(cmd *cobra.Command) GenerateConfig {
+func CreateGenerateTask(cmd *cobra.Command) GenerateTask {
 	output := Must(cmd.Flags().GetString("output"))
 	records := Must(cmd.Flags().GetInt("records"))
 	workers := Must(cmd.Flags().GetInt("workers"))
 	chunkSize := Must(cmd.Flags().GetInt("size"))
 
-	return GenerateConfig{
+	return GenerateTask{
 		output:       output,
 		records:      records,
 		workers:      workers,
@@ -216,14 +201,85 @@ func parseGenerateConfig(cmd *cobra.Command) GenerateConfig {
 	}
 }
 
-func parseComputeConfig(cmd *cobra.Command) ComputeConfig {
+func CreateBufferedReaderTask(cmd *cobra.Command) Task {
 	file := Must(cmd.Flags().GetString("file"))
-	iterations := Must(cmd.Flags().GetInt("iterations"))
 	buffer := Must(cmd.Flags().GetInt("buffer"))
 
-	return ComputeConfig{
+	return BufferedReaderTask{
 		file:       file,
-		iterations: iterations,
 		bufferSize: buffer,
+	}
+}
+
+func CreateBufferedReaderBytesTask(cmd *cobra.Command) Task {
+	file := Must(cmd.Flags().GetString("file"))
+	buffer := Must(cmd.Flags().GetInt("buffer"))
+
+	return BufferedReaderBytesTask{
+		file:       file,
+		bufferSize: buffer,
+	}
+}
+
+func CreateParallelReaderTask(cmd *cobra.Command) Task {
+	file := Must(cmd.Flags().GetString("file"))
+	buffer := Must(cmd.Flags().GetInt("buffer"))
+
+	return ParallelBufferedReaderTask{
+		file:       file,
+		bufferSize: buffer,
+	}
+}
+
+func CreateExecutionConfig(cmd *cobra.Command) ExecutionConfig {
+	return ExecutionConfig{
+		Iterations: Must(cmd.Flags().GetInt("iterations")),
+	}
+}
+
+func CreateNaiveTask(cmd *cobra.Command) Task {
+	file := Must(cmd.Flags().GetString("file"))
+	buffer := Must(cmd.Flags().GetInt("buffer"))
+
+	return NaiveComputeTask{
+		file:       file,
+		bufferSize: buffer,
+	}
+}
+
+func CreateProducerConsumerTask(cmd *cobra.Command) Task {
+	file := Must(cmd.Flags().GetString("file"))
+	buffer := Must(cmd.Flags().GetInt("buffer"))
+
+	return ProducerConsumerTask{
+		file:       file,
+		bufferSize: buffer,
+	}
+}
+
+func CreateParallelProducerConsumerTask(cmd *cobra.Command) Task {
+	file := Must(cmd.Flags().GetString("file"))
+	buffer := Must(cmd.Flags().GetInt("buffer"))
+
+	return ParallelProducerConsumerTask{
+		file:       file,
+		bufferSize: buffer,
+	}
+}
+
+func CreateParallelStagedProducerConsumerTask(cmd *cobra.Command) Task {
+	file := Must(cmd.Flags().GetString("file"))
+	buffer := Must(cmd.Flags().GetInt("buffer"))
+
+	return ParallelStagedProducerConsumerTask{
+		file:       file,
+		bufferSize: buffer,
+	}
+}
+
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Printf("Process failed with an error: [%s]\n", err)
+		os.Exit(1)
 	}
 }

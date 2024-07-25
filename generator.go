@@ -10,43 +10,54 @@ import (
 	"sync"
 )
 
-type interval struct {
-	start int
-	end   int
+type GenerateTask struct {
+	output       string
+	records      int
+	maxChunkSize int
+	workers      int
+	_            struct{}
 }
 
-func generateMeasurements(config GenerateConfig) {
+func (c GenerateTask) chunkSize() int {
+	return min(c.records, c.maxChunkSize)
+}
+
+func (c GenerateTask) totalChunks() int {
+	return c.records / c.chunkSize()
+}
+
+func (c GenerateTask) Execute() {
 	intervals := make(chan interval)
-	go generateIntervals(intervals, config)
+	go c.CreateIntervals(intervals)
 
 	producers := sync.WaitGroup{}
 	chunks := make(chan *bytes.Buffer)
-	for id := 0; id < config.workers; id++ {
+	for id := 0; id < c.workers; id++ {
 		producers.Add(1)
-		go generateData(id, intervals, chunks, &producers)
+		go PopulateIntervals(id, intervals, chunks, &producers)
 	}
 
 	consumers := sync.WaitGroup{}
 	consumers.Add(1)
-	go writeIntervals(config, chunks, &consumers)
+	go c.WriteIntervals(chunks, &consumers)
 
 	producers.Wait()
 	close(chunks)
 	consumers.Wait()
 }
 
-func generateIntervals(intervals chan interval, config GenerateConfig) {
+func (c GenerateTask) CreateIntervals(intervals chan interval) {
 	defer close(intervals)
 
-	for i := 0; i < config.totalChunks(); i++ {
-		start := i * config.chunkSize()
-		end := min(config.records, i*config.chunkSize()+config.chunkSize())
+	for i := 0; i < c.totalChunks(); i++ {
+		start := i * c.chunkSize()
+		end := min(c.records, i*c.chunkSize()+c.chunkSize())
 
 		intervals <- interval{start, end}
 	}
 }
 
-func generateData(id int, intervals chan interval, chunks chan *bytes.Buffer, produces *sync.WaitGroup) {
+func PopulateIntervals(id int, intervals chan interval, chunks chan *bytes.Buffer, produces *sync.WaitGroup) {
 	defer produces.Done()
 
 	rnd := rand.New(rand.NewSource(int64(id)))
@@ -67,10 +78,10 @@ func generateData(id int, intervals chan interval, chunks chan *bytes.Buffer, pr
 	}
 }
 
-func writeIntervals(config GenerateConfig, chunks chan *bytes.Buffer, writers *sync.WaitGroup) {
-	pb := beauty.NewProgressBar(config.totalChunks())
+func (c GenerateTask) WriteIntervals(chunks chan *bytes.Buffer, writers *sync.WaitGroup) {
+	pb := beauty.NewProgressBar(c.totalChunks())
 
-	file := Must(os.OpenFile(config.output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
+	file := Must(os.OpenFile(c.output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644))
 	defer Cleanup(file)
 
 	for buffer := range chunks {
@@ -78,6 +89,11 @@ func writeIntervals(config GenerateConfig, chunks chan *bytes.Buffer, writers *s
 		pb.Increment()
 	}
 	writers.Done()
+}
+
+type interval struct {
+	start int
+	end   int
 }
 
 var stations = []string{

@@ -11,35 +11,62 @@ import (
 	"testing"
 )
 
+type TaskFactory[T Task] struct{}
+
+func (f TaskFactory[T]) Create() *T {
+	var a T
+	return &a
+}
+
 type TestSuite struct {
 	suite.Suite
-	execute func(computeConfig ComputeConfig)
+	taskProvider func(file string) Task
 }
 
 func TestNaive(t *testing.T) {
 	testingSuite := new(TestSuite)
-	testingSuite.execute = naive
+
+	testingSuite.taskProvider = func(path string) Task {
+		task := TaskFactory[NaiveComputeTask]{}.Create()
+		task.file = path
+		return task
+	}
 
 	suite.Run(t, testingSuite)
 }
 
 func TestChain(t *testing.T) {
 	testingSuite := new(TestSuite)
-	testingSuite.execute = chain
+
+	testingSuite.taskProvider = func(path string) Task {
+		task := TaskFactory[ProducerConsumerTask]{}.Create()
+		task.file = path
+		return task
+	}
 
 	suite.Run(t, testingSuite)
 }
 
 func TestParallel(t *testing.T) {
 	testingSuite := new(TestSuite)
-	testingSuite.execute = pcp
+
+	testingSuite.taskProvider = func(path string) Task {
+		task := TaskFactory[ParallelProducerConsumerTask]{}.Create()
+		task.file = path
+		return task
+	}
 
 	suite.Run(t, testingSuite)
 }
 
 func TestParallelStaged(t *testing.T) {
 	testingSuite := new(TestSuite)
-	testingSuite.execute = pcpStaged
+
+	testingSuite.taskProvider = func(path string) Task {
+		task := TaskFactory[ParallelStagedProducerConsumerTask]{}.Create()
+		task.file = path
+		return task
+	}
 
 	suite.Run(t, testingSuite)
 }
@@ -95,21 +122,13 @@ func (s *TestSuite) executeTest(test TestData) {
 	ch := make(chan string)
 	go readFromPipe(r, ch)
 
-	go s.execute(config(test.input))
+	go s.taskProvider(path(test.input))
 
 	result := actual(ch)
 	expected := expected(path(test.output))
 
 	if ok := assert.Equal(s.T(), expected, result); !ok {
 		s.T().Errorf("Failed for file: [%s]", test.input)
-	}
-}
-
-func config(name string) ComputeConfig {
-	path, _ := filepath.Abs(filepath.Join("src/test/resources/samples", name))
-	return ComputeConfig{
-		file:       path,
-		bufferSize: 1024,
 	}
 }
 

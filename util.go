@@ -10,29 +10,6 @@ import (
 
 const delimiter = ";"
 
-type ComputeConfig struct {
-	file       string
-	iterations int
-	bufferSize int
-	_          struct{}
-}
-
-type GenerateConfig struct {
-	output       string
-	records      int
-	maxChunkSize int
-	workers      int
-	_            struct{}
-}
-
-func (c GenerateConfig) chunkSize() int {
-	return min(c.records, c.maxChunkSize)
-}
-
-func (c GenerateConfig) totalChunks() int {
-	return c.records / c.chunkSize()
-}
-
 type Aggregate struct {
 	min   float32
 	max   float32

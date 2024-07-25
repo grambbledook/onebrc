@@ -8,8 +8,22 @@ import (
 	"sync"
 )
 
-func pcp(config ComputeConfig) {
-	file := Must(os.Stat(config.file))
+type ParallelProducerConsumerTask struct {
+	file       string
+	bufferSize int
+	_          struct{}
+}
+
+func (t ParallelProducerConsumerTask) Name() string {
+	return "Parallel Producer-Consumer Task"
+}
+
+func (t ParallelProducerConsumerTask) File() string {
+	return t.file
+}
+
+func (t ParallelProducerConsumerTask) Execute() {
+	file := Must(os.Stat(t.file))
 
 	workers := runtime.NumCPU()
 	chunkSize := int(file.Size()) / workers
@@ -24,12 +38,12 @@ func pcp(config ComputeConfig) {
 		if i == workers-1 {
 			end = int(file.Size())
 		}
-		go reader(i, config, start, end, aggregates, &readers)
+		go t.Reader(i, start, end, aggregates, &readers)
 	}
 
 	reducers := sync.WaitGroup{}
 	reducers.Add(1)
-	go reduce(aggregates, &reducers)
+	go t.Reduce(aggregates, &reducers)
 
 	readers.Wait()
 	close(aggregates)
@@ -37,20 +51,19 @@ func pcp(config ComputeConfig) {
 	reducers.Wait()
 }
 
-func reader(
+func (t ParallelProducerConsumerTask) Reader(
 	id int,
-	config ComputeConfig,
 	start, end int,
 	aggregates chan map[string]*Aggregate,
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
 
-	file := Must(os.Open(config.file))
+	file := Must(os.Open(t.file))
 	Must(file.Seek(int64(start), io.SeekStart))
 	defer file.Close()
 
-	in := bufio.NewReaderSize(file, config.bufferSize)
+	in := bufio.NewReaderSize(file, t.bufferSize)
 
 	totalBytes := 0
 	if id != 0 {
@@ -88,7 +101,7 @@ func reader(
 	aggregates <- cities
 }
 
-func reduce(input chan map[string]*Aggregate, wg *sync.WaitGroup) {
+func (t ParallelProducerConsumerTask) Reduce(input chan map[string]*Aggregate, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	cities := make([]string, 0)

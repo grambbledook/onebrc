@@ -9,8 +9,22 @@ import (
 	"strings"
 )
 
-func buffer(config ComputeConfig) int {
-	data := bufio.NewReaderSize(Must(os.Open(config.file)), config.bufferSize)
+type BufferedReaderTask struct {
+	file       string
+	bufferSize int
+	_          struct{}
+}
+
+func (t BufferedReaderTask) Name() string {
+	return "Buffered Reader Task"
+}
+
+func (t BufferedReaderTask) File() string {
+	return t.file
+}
+
+func (t BufferedReaderTask) Execute() {
+	data := bufio.NewReaderSize(Must(os.Open(t.file)), t.bufferSize)
 
 	lines := make(chan string)
 	count := 0
@@ -32,11 +46,24 @@ func buffer(config ComputeConfig) int {
 
 		count++
 	}
-	return count
 }
 
-func readBytes(config ComputeConfig) int {
-	data := bufio.NewReaderSize(Must(os.Open(config.file)), config.bufferSize)
+type BufferedReaderBytesTask struct {
+	file       string
+	bufferSize int
+	_          struct{}
+}
+
+func (t BufferedReaderBytesTask) Name() string {
+	return "Buffered Reader Bytes Task"
+}
+
+func (t BufferedReaderBytesTask) File() string {
+	return t.file
+}
+
+func (t BufferedReaderBytesTask) Execute() {
+	data := bufio.NewReaderSize(Must(os.Open(t.file)), t.bufferSize)
 
 	lines := make(chan string)
 	count := 0
@@ -54,11 +81,24 @@ func readBytes(config ComputeConfig) int {
 
 		count++
 	}
-	return count
 }
 
-func bufferParallel(config ComputeConfig) int {
-	f := Must(os.Stat(config.file))
+type ParallelBufferedReaderTask struct {
+	file       string
+	bufferSize int
+	_          struct{}
+}
+
+func (t ParallelBufferedReaderTask) Name() string {
+	return "Buffered Reader Task"
+}
+
+func (t ParallelBufferedReaderTask) File() string {
+	return t.file
+}
+
+func (t ParallelBufferedReaderTask) Execute() {
+	f := Must(os.Stat(t.file))
 
 	workers := runtime.NumCPU()
 	size := int(f.Size()) / workers
@@ -70,7 +110,7 @@ func bufferParallel(config ComputeConfig) int {
 
 	for i := 0; i < workers; i++ {
 		start, end := i*size, (i+1)*size
-		go readChunk(config, start, end, outputs[i], i)
+		go t.ReadChunk(start, end, outputs[i], i)
 	}
 
 	total := 0
@@ -79,19 +119,18 @@ func bufferParallel(config ComputeConfig) int {
 		total += count
 	}
 	println("Total lines", total)
-	return 0
 }
 
-func readChunk(config ComputeConfig, start, end int, out chan string, id int) {
+func (t ParallelBufferedReaderTask) ReadChunk(start, end int, out chan string, id int) {
 	defer close(out)
 
-	file := Must(os.Open(config.file))
+	file := Must(os.Open(t.file))
 	defer file.Close()
 
 	Must(file.Seek(int64(start), io.SeekStart))
 
-	println("Worker", id, "started", "total bytes to read", end-start)
-	data := bufio.NewReaderSize(file, config.bufferSize)
+	println("Worker", id, "started", "total bytes to Compute", end-start)
+	data := bufio.NewReaderSize(file, t.bufferSize)
 	totalBytesRead := 0
 	if id != 0 {
 		line := Must(data.ReadBytes('\n'))

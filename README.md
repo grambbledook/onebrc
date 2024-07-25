@@ -36,10 +36,10 @@ Usage:
   obebrc generate [flags]
 
 Modes:
-  chain: A producer-consumer implementation of 1brc
-  naive: A naive implementation of 1brc
-  parallel: A parallel producer-consumer implementation of 1brc
-  staged: A parallel staged producer-consumer implementation of 1brc
+  naive       A naive implementation of 1brc
+  parallel    A parallel producer-consumer implementation of 1brc
+  sequential  A producer-consumer implementation of 1brc
+  staged      A parallel staged producer-consumer implementation of 1brc
 
 Flags:
   -b, --buffer int               buffer size for the buffered reader (default 1024)
