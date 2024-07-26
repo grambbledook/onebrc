@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,7 +24,7 @@ func Must[T any](t T, err error) T {
 	return t
 }
 
-func parse(line string) (string, float32) {
+func ParseFloat(line string) (string, float32) {
 	length := len(line)
 	idx := strings.Index(line, delimiter)
 
@@ -35,7 +34,31 @@ func parse(line string) (string, float32) {
 	return city, float32(temperature)
 }
 
-func render(cities []string, aggregates map[string]*Aggregate) {
+func ParseInt(line string) (string, int) {
+	idx := strings.Index(line, delimiter)
+
+	temperature, sign := 0, 1
+	city := line[:idx]
+	for _, c := range line[idx+1:] {
+		if c == '\n' {
+			break
+		}
+
+		if c == '-' {
+			sign *= -1
+			continue
+		}
+
+		if c == '.' {
+			continue
+		}
+		temperature = temperature*10 + int(c-'0')
+	}
+
+	return city, temperature * sign
+}
+
+func render[T Number](cities []string, aggregates map[string]*Aggregate[T]) {
 	slices.Sort(cities)
 
 	fmt.Print("{")
@@ -44,16 +67,12 @@ func render(cities []string, aggregates map[string]*Aggregate) {
 			fmt.Print(", ")
 		}
 		a := aggregates[city]
-		fmt.Printf("%s=%.1f/%.1f/%.1f",
+		fmt.Printf("%s=%s/%s/%s",
 			city,
-			round(a.min),
-			round(round(a.sum)/float32(a.count)),
-			round(a.max),
+			a.Min(),
+			a.Avg(),
+			a.Max(),
 		)
 	}
 	fmt.Println("}")
-}
-
-func round(mean float32) float32 {
-	return float32(math.Round(float64(mean)*10) / 10)
 }

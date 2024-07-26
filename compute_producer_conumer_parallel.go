@@ -8,21 +8,22 @@ import (
 	"sync"
 )
 
-type ParallelProducerConsumerTask struct {
+type ParallelProducerConsumerTask[T Number] struct {
 	file       string
 	bufferSize int
+	lineParser func(string) (string, T)
 	_          struct{}
 }
 
-func (t ParallelProducerConsumerTask) Name() string {
+func (t ParallelProducerConsumerTask[T]) Name() string {
 	return "Parallel Producer-Consumer Task"
 }
 
-func (t ParallelProducerConsumerTask) File() string {
+func (t ParallelProducerConsumerTask[T]) File() string {
 	return t.file
 }
 
-func (t ParallelProducerConsumerTask) Execute() {
+func (t ParallelProducerConsumerTask[T]) Execute() {
 	file := Must(os.Stat(t.file))
 
 	workers := runtime.NumCPU()
@@ -31,7 +32,7 @@ func (t ParallelProducerConsumerTask) Execute() {
 	readers := sync.WaitGroup{}
 	readers.Add(workers)
 
-	aggregates := make(chan map[string]*Aggregate, workers)
+	aggregates := make(chan map[string]*Aggregate[T], workers)
 	for i := 0; i < workers; i++ {
 
 		start, end := i*chunkSize, (i+1)*chunkSize
@@ -51,10 +52,10 @@ func (t ParallelProducerConsumerTask) Execute() {
 	reducers.Wait()
 }
 
-func (t ParallelProducerConsumerTask) Reader(
+func (t ParallelProducerConsumerTask[T]) Reader(
 	id int,
 	start, end int,
-	aggregates chan map[string]*Aggregate,
+	aggregates chan map[string]*Aggregate[T],
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
@@ -71,7 +72,7 @@ func (t ParallelProducerConsumerTask) Reader(
 		totalBytes += len(line)
 	}
 
-	cities := make(map[string]*Aggregate)
+	cities := make(map[string]*Aggregate[T])
 	total := 0
 	for totalBytes <= end-start {
 		line, err := in.ReadString('\n')
@@ -84,10 +85,10 @@ func (t ParallelProducerConsumerTask) Reader(
 		totalBytes += len(line)
 		total++
 
-		city, temperature := parse(line)
+		city, temperature := t.lineParser(line)
 		aggregate, ok := cities[city]
 		if !ok {
-			aggregate = &Aggregate{temperature, temperature, temperature, 1}
+			aggregate = &Aggregate[T]{temperature, temperature, temperature, 1}
 			cities[city] = aggregate
 
 			continue
@@ -101,11 +102,11 @@ func (t ParallelProducerConsumerTask) Reader(
 	aggregates <- cities
 }
 
-func (t ParallelProducerConsumerTask) Reduce(input chan map[string]*Aggregate, wg *sync.WaitGroup) {
+func (t ParallelProducerConsumerTask[T]) Reduce(input chan map[string]*Aggregate[T], wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	cities := make([]string, 0)
-	aggregates := make(map[string]*Aggregate)
+	aggregates := make(map[string]*Aggregate[T])
 
 	for chunk := range input {
 		for city, other := range chunk {

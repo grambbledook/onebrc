@@ -8,21 +8,22 @@ import (
 	"sync"
 )
 
-type ParallelStagedProducerConsumerTask struct {
+type ParallelStagedProducerConsumerTask[T Number] struct {
 	file       string
 	bufferSize int
+	lineParser func(string) (string, T)
 	_          struct{}
 }
 
-func (t ParallelStagedProducerConsumerTask) Name() string {
+func (t ParallelStagedProducerConsumerTask[T]) Name() string {
 	return "Parallel Staged Producer-Consumer Task"
 }
 
-func (t ParallelStagedProducerConsumerTask) File() string {
+func (t ParallelStagedProducerConsumerTask[T]) File() string {
 	return t.file
 }
 
-func (t ParallelStagedProducerConsumerTask) Execute() {
+func (t ParallelStagedProducerConsumerTask[T]) Execute() {
 	file := Must(os.Stat(t.file))
 
 	workers := runtime.NumCPU() / 2
@@ -31,7 +32,7 @@ func (t ParallelStagedProducerConsumerTask) Execute() {
 	aggregators := sync.WaitGroup{}
 	aggregators.Add(workers)
 
-	aggregates := make(chan map[string]*Aggregate, workers)
+	aggregates := make(chan map[string]*Aggregate[T], workers)
 
 	for i := 0; i < workers; i++ {
 		buffer := make(chan string, 500)
@@ -54,7 +55,7 @@ func (t ParallelStagedProducerConsumerTask) Execute() {
 	reducers.Wait()
 }
 
-func (t ParallelStagedProducerConsumerTask) Reader(id int, start, end int, buffer chan string) {
+func (t ParallelStagedProducerConsumerTask[T]) Reader(id int, start, end int, buffer chan string) {
 	defer close(buffer)
 
 	file := Must(os.Open(t.file))
@@ -83,16 +84,16 @@ func (t ParallelStagedProducerConsumerTask) Reader(id int, start, end int, buffe
 	}
 }
 
-func (t ParallelStagedProducerConsumerTask) Aggregator(buffer chan string, aggregates chan map[string]*Aggregate, wg *sync.WaitGroup) {
+func (t ParallelStagedProducerConsumerTask[T]) Aggregator(buffer chan string, aggregates chan map[string]*Aggregate[T], wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	cities := make(map[string]*Aggregate)
+	cities := make(map[string]*Aggregate[T])
 
 	for line := range buffer {
-		city, temperature := parse(line)
+		city, temperature := t.lineParser(line)
 		aggregate, ok := cities[city]
 		if !ok {
-			aggregate = &Aggregate{temperature, temperature, temperature, 1}
+			aggregate = &Aggregate[T]{temperature, temperature, temperature, 1}
 			cities[city] = aggregate
 
 			continue
@@ -106,11 +107,11 @@ func (t ParallelStagedProducerConsumerTask) Aggregator(buffer chan string, aggre
 	aggregates <- cities
 }
 
-func (t ParallelStagedProducerConsumerTask) Reduce(input chan map[string]*Aggregate, wg *sync.WaitGroup) {
+func (t ParallelStagedProducerConsumerTask[T]) Reduce(input chan map[string]*Aggregate[T], wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	cities := make([]string, 0)
-	aggregates := make(map[string]*Aggregate)
+	aggregates := make(map[string]*Aggregate[T])
 
 	for chunk := range input {
 		for city, other := range chunk {

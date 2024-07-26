@@ -98,6 +98,8 @@ func init() {
 	computeCmd.PersistentFlags().
 		StringP("file", "f", "measurements.csv", "input file")
 	computeCmd.PersistentFlags().
+		BoolP("integers", "i", false, "use integer numbers in computations")
+	computeCmd.PersistentFlags().
 		IntP("iterations", "n", 1, "number of iterations to run the computation")
 	computeCmd.PersistentFlags().
 		IntP("buffer", "b", 1024, "buffer size for the buffered reader")
@@ -240,40 +242,80 @@ func CreateExecutionConfig(cmd *cobra.Command) ExecutionConfig {
 func CreateNaiveTask(cmd *cobra.Command) Task {
 	file := Must(cmd.Flags().GetString("file"))
 	buffer := Must(cmd.Flags().GetInt("buffer"))
+	useInts := Must(cmd.Flags().GetBool("integers"))
 
-	return NaiveComputeTask{
+	if useInts {
+		return NaiveComputeTask[int]{
+			file:       file,
+			bufferSize: buffer,
+			lineParser: ParseInt,
+		}
+	}
+
+	return NaiveComputeTask[float32]{
 		file:       file,
 		bufferSize: buffer,
+		lineParser: ParseFloat,
 	}
 }
 
 func CreateProducerConsumerTask(cmd *cobra.Command) Task {
 	file := Must(cmd.Flags().GetString("file"))
 	buffer := Must(cmd.Flags().GetInt("buffer"))
+	useInts := Must(cmd.Flags().GetBool("integers"))
 
-	return ProducerConsumerTask{
+	if useInts {
+		return ProducerConsumerTask[int]{
+			file:       file,
+			bufferSize: buffer,
+			lineParser: ParseInt,
+		}
+	}
+
+	return ProducerConsumerTask[float32]{
 		file:       file,
 		bufferSize: buffer,
+		lineParser: ParseFloat,
 	}
 }
 
 func CreateParallelProducerConsumerTask(cmd *cobra.Command) Task {
 	file := Must(cmd.Flags().GetString("file"))
 	buffer := Must(cmd.Flags().GetInt("buffer"))
+	useInts := Must(cmd.Flags().GetBool("integers"))
 
-	return ParallelProducerConsumerTask{
+	if useInts {
+		return ParallelProducerConsumerTask[int]{
+			file:       file,
+			bufferSize: buffer,
+			lineParser: ParseInt,
+		}
+	}
+
+	return ParallelProducerConsumerTask[float32]{
 		file:       file,
 		bufferSize: buffer,
+		lineParser: ParseFloat,
 	}
 }
 
 func CreateParallelStagedProducerConsumerTask(cmd *cobra.Command) Task {
 	file := Must(cmd.Flags().GetString("file"))
 	buffer := Must(cmd.Flags().GetInt("buffer"))
+	useInts := Must(cmd.Flags().GetBool("integers"))
 
-	return ParallelStagedProducerConsumerTask{
+	if useInts {
+		return ParallelStagedProducerConsumerTask[int]{
+			file:       file,
+			bufferSize: buffer,
+			lineParser: ParseInt,
+		}
+	}
+
+	return ParallelStagedProducerConsumerTask[float32]{
 		file:       file,
 		bufferSize: buffer,
+		lineParser: ParseFloat,
 	}
 }
 

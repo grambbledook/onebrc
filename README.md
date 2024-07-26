@@ -44,6 +44,7 @@ Modes:
 Flags:
   -b, --buffer int               buffer size for the buffered reader (default 1024)
   -f, --file string              input file (default "measurements.csv")
+  -i, --integers                 use integer numbers in computations
   -n, --iterations int           number of iterations to run the computation (default 1)
   
 Global Flags:

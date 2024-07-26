@@ -7,25 +7,26 @@ import (
 	"sync"
 )
 
-type ProducerConsumerTask struct {
+type ProducerConsumerTask[T Number] struct {
 	file       string
 	bufferSize int
+	lineParser func(string) (string, T)
 	_          struct{}
 }
 
-func (t ProducerConsumerTask) Name() string {
+func (t ProducerConsumerTask[T]) Name() string {
 	return "Producer-Consumer Task"
 }
 
-func (t ProducerConsumerTask) File() string {
+func (t ProducerConsumerTask[T]) File() string {
 	return t.file
 }
 
-func (t ProducerConsumerTask) Execute() {
+func (t ProducerConsumerTask[T]) Execute() {
 	data := bufio.NewReaderSize(Must(os.Open(t.file)), t.bufferSize)
 
 	cities := make([]string, 0)
-	aggregates := make(map[string]*Aggregate)
+	aggregates := make(map[string]*Aggregate[T])
 
 	lines := make(chan string)
 
@@ -51,13 +52,13 @@ func (t ProducerConsumerTask) Execute() {
 
 	go func() {
 		for line := range lines {
-			city, temperature := parse(line)
+			city, temperature := t.lineParser(line)
 
 			aggregate, ok := aggregates[city]
 			if !ok {
 				cities = append(cities, city)
 
-				aggregate = &Aggregate{temperature, temperature, temperature, 1}
+				aggregate = &Aggregate[T]{temperature, temperature, temperature, 1}
 				aggregates[city] = aggregate
 				continue
 			}

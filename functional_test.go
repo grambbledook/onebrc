@@ -27,8 +27,9 @@ func TestNaive(t *testing.T) {
 	testingSuite := new(TestSuite)
 
 	testingSuite.taskProvider = func(path string) Task {
-		task := TaskFactory[NaiveComputeTask]{}.Create()
+		task := TaskFactory[NaiveComputeTask[int]]{}.Create()
 		task.file = path
+		task.lineParser = ParseInt
 		return task
 	}
 
@@ -39,8 +40,9 @@ func TestChain(t *testing.T) {
 	testingSuite := new(TestSuite)
 
 	testingSuite.taskProvider = func(path string) Task {
-		task := TaskFactory[ProducerConsumerTask]{}.Create()
+		task := TaskFactory[ProducerConsumerTask[int]]{}.Create()
 		task.file = path
+		task.lineParser = ParseInt
 		return task
 	}
 
@@ -51,8 +53,9 @@ func TestParallel(t *testing.T) {
 	testingSuite := new(TestSuite)
 
 	testingSuite.taskProvider = func(path string) Task {
-		task := TaskFactory[ParallelProducerConsumerTask]{}.Create()
+		task := TaskFactory[ParallelProducerConsumerTask[float32]]{}.Create()
 		task.file = path
+		task.lineParser = ParseFloat
 		return task
 	}
 
@@ -63,8 +66,9 @@ func TestParallelStaged(t *testing.T) {
 	testingSuite := new(TestSuite)
 
 	testingSuite.taskProvider = func(path string) Task {
-		task := TaskFactory[ParallelStagedProducerConsumerTask]{}.Create()
+		task := TaskFactory[ParallelStagedProducerConsumerTask[int]]{}.Create()
 		task.file = path
+		task.lineParser = ParseInt
 		return task
 	}
 
