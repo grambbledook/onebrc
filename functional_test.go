@@ -53,7 +53,7 @@ func TestParallel(t *testing.T) {
 	testingSuite := new(TestSuite)
 
 	testingSuite.taskProvider = func(path string) Task {
-		task := TaskFactory[ParallelProducerConsumerTask[float32]]{}.Create()
+		task := TaskFactory[ParallelTask[float32]]{}.Create()
 		task.file = path
 		task.lineParser = ParseFloat
 		return task

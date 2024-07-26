@@ -69,13 +69,13 @@ var (
 
 	computePcpCmd = &cobra.Command{
 		Use:   "parallel",
-		Short: "A parallel producer-consumer implementation of 1brc",
+		Short: "A parallel implementation of 1brc",
 		Run:   Compute(CreateParallelProducerConsumerTask),
 	}
 
 	computePcpStagedCmd = &cobra.Command{
 		Use:   "staged",
-		Short: "A parallel staged producer-consumer implementation of 1brc",
+		Short: "A parallel producer-consumer implementation of 1brc",
 		Run:   Compute(CreateParallelStagedProducerConsumerTask),
 	}
 )
@@ -285,14 +285,14 @@ func CreateParallelProducerConsumerTask(cmd *cobra.Command) Task {
 	useInts := Must(cmd.Flags().GetBool("integers"))
 
 	if useInts {
-		return ParallelProducerConsumerTask[int]{
+		return ParallelTask[int]{
 			file:       file,
 			bufferSize: buffer,
 			lineParser: ParseInt,
 		}
 	}
 
-	return ParallelProducerConsumerTask[float32]{
+	return ParallelTask[float32]{
 		file:       file,
 		bufferSize: buffer,
 		lineParser: ParseFloat,

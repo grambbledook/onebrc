@@ -32,10 +32,10 @@ func (t ParallelStagedProducerConsumerTask[T]) Execute() {
 	aggregators := sync.WaitGroup{}
 	aggregators.Add(workers)
 
-	aggregates := make(chan map[string]*Aggregate[T], workers)
+	aggregates := make(chan map[string]*Aggregate[T], 1024)
 
 	for i := 0; i < workers; i++ {
-		buffer := make(chan string, 500)
+		buffer := make(chan string, workers)
 
 		start, end := i*chunkSize, (i+1)*chunkSize
 		if i == workers-1 {

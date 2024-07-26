@@ -8,22 +8,22 @@ import (
 	"sync"
 )
 
-type ParallelProducerConsumerTask[T Number] struct {
+type ParallelTask[T Number] struct {
 	file       string
 	bufferSize int
 	lineParser func(string) (string, T)
 	_          struct{}
 }
 
-func (t ParallelProducerConsumerTask[T]) Name() string {
-	return "Parallel Producer-Consumer Task"
+func (t ParallelTask[T]) Name() string {
+	return "Parallel Task"
 }
 
-func (t ParallelProducerConsumerTask[T]) File() string {
+func (t ParallelTask[T]) File() string {
 	return t.file
 }
 
-func (t ParallelProducerConsumerTask[T]) Execute() {
+func (t ParallelTask[T]) Execute() {
 	file := Must(os.Stat(t.file))
 
 	workers := runtime.NumCPU()
@@ -52,7 +52,7 @@ func (t ParallelProducerConsumerTask[T]) Execute() {
 	reducers.Wait()
 }
 
-func (t ParallelProducerConsumerTask[T]) Reader(
+func (t ParallelTask[T]) Reader(
 	id int,
 	start, end int,
 	aggregates chan map[string]*Aggregate[T],
@@ -102,7 +102,7 @@ func (t ParallelProducerConsumerTask[T]) Reader(
 	aggregates <- cities
 }
 
-func (t ParallelProducerConsumerTask[T]) Reduce(input chan map[string]*Aggregate[T], wg *sync.WaitGroup) {
+func (t ParallelTask[T]) Reduce(input chan map[string]*Aggregate[T], wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	cities := make([]string, 0)

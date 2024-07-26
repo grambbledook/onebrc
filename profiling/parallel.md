@@ -1,4 +1,9 @@
-## Parallel Producer-Consumer
+## Parallel File Reading
+
+Separates the load between logical cores and reads the file in parallel.
+Event parsing and aggregation happens in the same coroutine.
+Final aggregation is done in a single goroutine.
+
 
 ### strconv.ParseFloat
 
